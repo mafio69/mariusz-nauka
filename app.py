@@ -12,10 +12,18 @@ load_dotenv()
 print(f"DEBUG: Wczytany GOOGLE_API_KEY: {os.getenv('GOOGLE_API_KEY')}")
 
 # KROK 2: Tutaj zaczyna się reszta Twojej aplikacji
-from flask import Flask
+from flask import Flask, render_template
+from flask_cors import CORS
 
 # Utworzenie aplikacji Flask
 app = Flask(__name__)
+
+# --- Konfiguracja CORS ---
+# Włączamy CORS dla całej aplikacji. To pozwala przeglądarce (frontendowi)
+# bezpiecznie komunikować się z naszym serwerem (backendem).
+# W środowisku produkcyjnym warto ograniczyć dostęp tylko do zaufanej domeny:
+# CORS(app, resources={r"/gemini/*": {"origins": "https://twoja-domena.com"}})
+CORS(app)
 
 # WAŻNE: Importowanie Twoich "routes" (tras) musi nastąpić
 # PO załadowaniu zmiennych środowiskowych.
@@ -26,7 +34,7 @@ app.register_blueprint(gemini_bp)
 
 @app.route('/')
 def index():
-    return "Aplikacja Gemini działa!"
+    return render_template('index.html')
 
 # Uruchomienie aplikacji
 if __name__ == '__main__':
