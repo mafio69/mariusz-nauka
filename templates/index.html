@@ -6,13 +6,14 @@
     <title>Czat z Gemini</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 800px; margin: auto; padding: 20px; background-color: #f4f4f9; color: #333; display: flex; flex-direction: column; height: calc(100vh - 40px); }
-        h1 { color: #444; text-align: center; }
+        .header-container { display: flex; justify-content: space-between; align-items: center; }
+        h1 { color: #444; margin: 0; }
         #chat-container { flex-grow: 1; overflow-y: auto; background-color: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
         .message { margin-bottom: 15px; padding: 10px 15px; border-radius: 18px; max-width: 80%; line-height: 1.5; word-wrap: break-word; }
         .user-message { background-color: #007bff; color: white; align-self: flex-end; margin-left: auto; }
         .model-message { background-color: #e9e9eb; color: #333; align-self: flex-start; }
         /* Styles for Markdown code blocks */
-        .model-message pre { background-color: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 8px; overflow-x: auto; }
+        .model-message pre { position: relative; background-color: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 8px; overflow-x: auto; }
         .model-message code { font-family: "Fira Code", "Courier New", monospace; }
         .model-message p:last-child { margin-bottom: 0; }
         /* Typing indicator styles */
@@ -29,19 +30,45 @@
         @keyframes wave { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1.0); } }
         form { display: flex; gap: 10px; }
         textarea { flex-grow: 1; padding: 10px; font-size: 1rem; border-radius: 8px; border: 1px solid #ccc; resize: none; height: 50px; }
-        button { padding: 0 20px; font-size: 1rem; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; }
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .button { padding: 0 20px; font-size: 1rem; color: white; border: none; border-radius: 8px; cursor: pointer; height: 50px; display: flex; align-items: center; justify-content: center; }
+        #submit-button { background-color: #007bff; }
+        #submit-button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #new-chat-button { background-color: #6c757d; font-size: 0.9rem; padding: 8px 12px; height: auto; }
+
+        /* Styles for the copy button */
+        .copy-code-button {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background-color: #444857;
+            color: #abb2bf;
+            border: 1px solid #abb2bf;
+            padding: 4px 8px;
+            font-size: 0.8em;
+            border-radius: 5px;
+            cursor: pointer;
+            opacity: 0; /* Initially hidden */
+            transition: opacity 0.2s ease-in-out;
+        }
+        pre:hover .copy-code-button {
+            opacity: 1; /* Show on hover */
+        }
     </style>
-    <!-- Add Marked.js for Markdown parsing and DOMPurify for security -->
+    <!-- Add libraries for Markdown, Security, and Syntax Highlighting -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </head>
 <body>
-    <h1>Czat z Gemini (z historią)</h1>
+    <div class="header-container">
+        <h1>Czat z Gemini</h1>
+        <button id="new-chat-button" class="button">Nowy czat</button>
+    </div>
     <div id="chat-container"></div>
     <form id="gemini-form">
         <textarea id="question-input" name="question" rows="1" placeholder="Wpisz swoje pytanie tutaj..." required></textarea>
-        <button type="submit" id="submit-button">Wyślij</button>
+        <button type="submit" id="submit-button" class="button">Wyślij</button>
     </form>
 
     <script>
@@ -49,6 +76,8 @@
         const questionInput = document.getElementById('question-input');
         const chatContainer = document.getElementById('chat-container');
         const submitButton = document.getElementById('submit-button');
+        const newChatButton = document.getElementById('new-chat-button');
+        const HISTORY_KEY = 'geminiChatHistory';
 
         let conversationHistory = [];
 
@@ -63,6 +92,15 @@
         questionInput.addEventListener('input', () => {
             questionInput.style.height = 'auto';
             questionInput.style.height = (questionInput.scrollHeight) + 'px';
+        });
+
+        newChatButton.addEventListener('click', () => {
+            if (confirm('Czy na pewno chcesz rozpocząć nowy czat? Obecna historia zostanie usunięta.')) {
+                conversationHistory = [];
+                localStorage.removeItem(HISTORY_KEY);
+                chatContainer.innerHTML = '';
+                questionInput.focus();
+            }
         });
 
         form.addEventListener('submit', async (event) => {
@@ -113,6 +151,8 @@
                     const dirtyHtml = marked.parse(fullModelResponse);
                     modelMessageElement.innerHTML = DOMPurify.sanitize(dirtyHtml);
                     chatContainer.scrollTop = chatContainer.scrollHeight;
+                    // After rendering, enhance the code blocks with highlighting and copy buttons
+                    enhanceCodeBlocks(modelMessageElement);
                 }
             } catch (error) {
                 modelMessageElement.textContent = `Wystąpił błąd: ${error.message}`;
@@ -120,6 +160,7 @@
             } finally {
                 if (fullModelResponse) {
                     conversationHistory.push({ role: 'model', parts: [fullModelResponse] });
+                    saveHistory();
                 }
                 submitButton.disabled = false;
                 questionInput.focus();
@@ -143,6 +184,62 @@
             chatContainer.scrollTop = chatContainer.scrollHeight;
             return messageElement;
         }
+
+        function enhanceCodeBlocks(element) {
+            const codeBlocks = element.querySelectorAll('pre');
+            codeBlocks.forEach(pre => {
+                const code = pre.querySelector('code');
+                if (code) {
+                    // Apply syntax highlighting
+                    hljs.highlightElement(code);
+                }
+
+                // Create and add the copy button
+                const copyButton = document.createElement('button');
+                copyButton.textContent = 'Kopiuj';
+                copyButton.className = 'copy-code-button';
+
+                copyButton.addEventListener('click', () => {
+                    const codeToCopy = code ? code.innerText : pre.innerText;
+                    navigator.clipboard.writeText(codeToCopy).then(() => {
+                        copyButton.textContent = 'Skopiowano!';
+                        setTimeout(() => {
+                            copyButton.textContent = 'Kopiuj';
+                        }, 2000);
+                    }).catch(err => console.error('Błąd kopiowania:', err));
+                });
+
+                pre.appendChild(copyButton);
+            });
+        }
+
+        function saveHistory() {
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(conversationHistory));
+        }
+
+        function loadHistory() {
+            const savedHistory = localStorage.getItem(HISTORY_KEY);
+            if (savedHistory) {
+                conversationHistory = JSON.parse(savedHistory);
+                chatContainer.innerHTML = '';
+                conversationHistory.forEach(message => {
+                    const messageElement = document.createElement('div');
+                    messageElement.classList.add('message', `${message.role}-message`);
+                    if (message.role === 'user') {
+                        messageElement.textContent = message.parts[0];
+                    } else { // 'model'
+                        const dirtyHtml = marked.parse(message.parts[0]);
+                        messageElement.innerHTML = DOMPurify.sanitize(dirtyHtml);
+                        enhanceCodeBlocks(messageElement);
+                    }
+                    chatContainer.appendChild(messageElement);
+                });
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
+
+        // Load history on page start
+        loadHistory();
     </script>
 </body>
 </html>

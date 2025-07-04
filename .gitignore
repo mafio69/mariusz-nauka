@@ -1,3 +1,10 @@
+# Pliki środowiskowe
 .env
+
+# Katalogi cache Pythona
 __pycache__/
-.vscode/
+*.pyc
+
+# Katalogi z logami
+logs/
+*.log
