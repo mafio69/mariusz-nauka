@@ -8,3 +8,5 @@ __pycache__/
 # Katalogi z logami
 logs/
 *.log
+.venv/
+.vscode/
