@@ -1,120 +1,175 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // --- Elementy DOM ---
-    const form = document.getElementById('gemini-form');
-    const questionInput = document.getElementById('question-input');
-    const chatContainer = document.getElementById('chat-container');
-    const newChatButton = document.getElementById('new-chat-button');
-    const submitButton = document.getElementById('submit-button');
+const form = document.getElementById('gemini-form');
+const questionInput = document.getElementById('question-input');
+const chatContainer = document.getElementById('chat-container');
+const submitButton = document.getElementById('submit-button');
+const newChatButton = document.getElementById('new-chat-button');
+const HISTORY_KEY = 'geminiChatHistory';
 
-    // --- Stan aplikacji ---
-    let chatHistory = [];
+let conversationHistory = [];
 
-    // --- Główny Event Listener dla formularza ---
-    form.addEventListener('submit', async (event) => {
-        // Zapobiegaj domyślnemu przeładowaniu strony przez formularz
+questionInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
-
-        const question = questionInput.value.trim();
-        if (!question) {
-            return; // Nie wysyłaj pustych pytań
-        }
-
-        // Zablokuj interfejs na czas przetwarzania
-        setFormState(true);
-
-        // Dodaj wiadomość użytkownika do UI i historii
-        addUserMessageToUI(question);
-        chatHistory.push({ role: 'user', parts: [{ text: question }] });
-
-        // Wyczyść pole wprowadzania
-        questionInput.value = '';
-        questionInput.style.height = 'auto'; // Zresetuj wysokość textarea
-
-        // Utwórz kontener na odpowiedź modelu
-        const modelResponseDiv = addModelMessageToUI('');
-
-        try {
-            const response = await fetch('/gemini/ask', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    question: question,
-                    history: chatHistory,
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error(`Błąd serwera: ${response.status}`);
-            }
-
-            // Przetwarzaj odpowiedź strumieniową
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let modelResponseText = '';
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value, { stream: true });
-                modelResponseText += chunk;
-                // Użyj DOMPurify do oczyszczenia i marked do renderowania Markdown
-                modelResponseDiv.innerHTML = DOMPurify.sanitize(marked.parse(modelResponseText));
-                // Podświetl składnię w blokach kodu
-                modelResponseDiv.querySelectorAll('pre code').forEach(hljs.highlightElement);
-                scrollToBottom();
-            }
-
-            // Zaktualizuj historię ostateczną odpowiedzią modelu
-            chatHistory.push({ role: 'model', parts: [{ text: modelResponseText }] });
-
-        } catch (error) {
-            console.error('Błąd podczas komunikacji z API:', error);
-            modelResponseDiv.innerHTML = `<p class="error">Wystąpił błąd. Spróbuj ponownie.</p>`;
-        } finally {
-            // Odblokuj interfejs po otrzymaniu odpowiedzi (nawet jeśli wystąpił błąd)
-            setFormState(false);
-        }
-    });
-
-    // --- Dodatkowe Event Listenery ---
-    newChatButton.addEventListener('click', () => {
-        chatContainer.innerHTML = '';
-        chatHistory = [];
-        questionInput.value = '';
-        questionInput.focus();
-    });
-
-    questionInput.addEventListener('input', () => {
-        questionInput.style.height = 'auto';
-        questionInput.style.height = `${questionInput.scrollHeight}px`;
-    });
-
-    // --- Funkcje pomocnicze ---
-    function setFormState(isSubmitting) {
-        questionInput.disabled = isSubmitting;
-        submitButton.disabled = isSubmitting;
-        submitButton.textContent = isSubmitting ? 'Czekaj...' : 'Wyślij';
-    }
-
-    function addUserMessageToUI(message) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'message user-message';
-        // Zawsze oczyszczaj dane wejściowe przed wyświetleniem
-        messageDiv.innerHTML = DOMPurify.sanitize(marked.parse(message));
-        chatContainer.appendChild(messageDiv);
-        scrollToBottom();
-    }
-
-    function addModelMessageToUI(message) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'message model-message';
-        messageDiv.innerHTML = message; // Początkowo puste, będzie wypełniane strumieniem
-        chatContainer.appendChild(messageDiv);
-        scrollToBottom();
-        return messageDiv; // Zwróć element, aby można go było aktualizować
-    }
-
-    function scrollToBottom() {
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+        form.dispatchEvent(new Event('submit'));
     }
 });
+
+// Auto-resize textarea
+questionInput.addEventListener('input', () => {
+    questionInput.style.height = 'auto';
+    questionInput.style.height = (questionInput.scrollHeight) + 'px';
+});
+
+newChatButton.addEventListener('click', () => {
+    if (confirm('Czy na pewno chcesz rozpocząć nowy czat? Obecna historia zostanie usunięta.')) {
+        conversationHistory = [];
+        localStorage.removeItem(HISTORY_KEY);
+        chatContainer.innerHTML = '';
+        questionInput.focus();
+    }
+});
+
+form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const question = questionInput.value.trim();
+    if (!question) return;
+
+    displayMessage(question, 'user');
+    conversationHistory.push({ role: 'user', parts: [question] });
+    questionInput.value = '';
+    questionInput.style.height = 'auto'; // Reset height after sending
+    
+    submitButton.disabled = true;
+
+    const modelMessageElement = displayMessage('', 'model');
+    let fullModelResponse = '';
+    let firstChunkReceived = false;
+
+    try {
+        // Używamy ścieżki względnej. Przeglądarka automatycznie
+        // użyje tej samej domeny i portu, z której serwowana jest strona.
+        // To najlepsza praktyka, która działa zarówno lokalnie, jak i w Cloud Shell.
+        const response = await fetch('/gemini/ask', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question, history: conversationHistory }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            if (!firstChunkReceived && chunk) {
+                firstChunkReceived = true;
+                modelMessageElement.innerHTML = ''; // Clear the typing indicator
+            }
+
+            fullModelResponse += chunk;
+            renderModelMessage(fullModelResponse, modelMessageElement);
+            chatContainer.scrollTop = chatContainer.scrollHeight; // Scroll after render
+        }
+    } catch (error) {
+        modelMessageElement.textContent = `Wystąpił błąd: ${error.message}`;
+        console.error('Fetch error:', error);
+    } finally {
+        if (fullModelResponse) {
+            conversationHistory.push({ role: 'model', parts: [fullModelResponse] });
+            saveHistory();
+        }
+        submitButton.disabled = false;
+        questionInput.focus();
+    }
+});
+
+function displayMessage(text, type) {
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message', `${type}-message`);
+    if (type === 'user') {
+        messageElement.textContent = text;
+    } else {
+        // For model messages, show a typing indicator
+        messageElement.innerHTML = `
+            <div class="typing-indicator">
+                <span></span><span></span><span></span>
+            </div>
+        `;
+    }
+    chatContainer.appendChild(messageElement);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    return messageElement;
+}
+
+function renderModelMessage(text, element) {
+    // Parse Markdown and sanitize the HTML for security before displaying
+    const dirtyHtml = marked.parse(text);
+    element.innerHTML = DOMPurify.sanitize(dirtyHtml);
+    // After rendering, enhance the code blocks with highlighting and copy buttons
+    enhanceCodeBlocks(element);
+}
+
+function enhanceCodeBlocks(element) {
+    const codeBlocks = element.querySelectorAll('pre');
+    codeBlocks.forEach(pre => {
+        const code = pre.querySelector('code');
+        if (code) {
+            // Apply syntax highlighting
+            hljs.highlightElement(code);
+        }
+
+        // Create and add the copy button
+        const copyButton = document.createElement('button');
+        copyButton.textContent = 'Kopiuj';
+        copyButton.className = 'copy-code-button';
+
+        copyButton.addEventListener('click', () => {
+            const codeToCopy = code ? code.innerText : pre.innerText;
+            navigator.clipboard.writeText(codeToCopy).then(() => {
+                copyButton.textContent = 'Skopiowano!';
+                setTimeout(() => {
+                    copyButton.textContent = 'Kopiuj';
+                }, 2000);
+            }).catch(err => console.error('Błąd kopiowania:', err));
+        });
+
+        pre.appendChild(copyButton);
+    });
+}
+
+function saveHistory() {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(conversationHistory));
+}
+
+function loadHistory() {
+    const savedHistory = localStorage.getItem(HISTORY_KEY);
+    if (savedHistory) {
+        try {
+            conversationHistory = JSON.parse(savedHistory);
+            chatContainer.innerHTML = '';
+            conversationHistory.forEach(message => {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', `${message.role}-message`);
+                if (message.role === 'user') {
+                    messageElement.textContent = message.parts[0];
+                } else { // 'model'
+                    renderModelMessage(message.parts[0], messageElement);
+                }
+                chatContainer.appendChild(messageElement);
+            });
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        } catch (e) {
+            console.error("Błąd podczas wczytywania historii czatu:", e);
+            localStorage.removeItem(HISTORY_KEY); // Clear corrupted history
+        }
+    }
+}
+
+// Load history on page start
+loadHistory();

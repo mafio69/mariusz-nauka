@@ -5,6 +5,7 @@ This module is responsible for configuration, model initialization,
 and the core logic of communicating with the Gemini API.
 """
 import os
+from app.logging_config import logger
 from typing import Any, Dict, Iterator, List, Optional
 
 # --- Constants and Configuration ---
@@ -39,5 +40,5 @@ def stream_chat_response(model: Optional[Any], question: str, history: List[Dict
             if chunk.text:
                 yield chunk.text
     except Exception as e:
-        print(f"!!! ERROR COMMUNICATING WITH GEMINI API: {e}")
+        logger.error(f"Błąd podczas komunikacji z API Gemini: {e}", exc_info=True)
         yield f"\n\n[Wystąpił błąd serwera podczas komunikacji z Gemini. Sprawdź logi w konsoli, aby zobaczyć szczegóły.]"
