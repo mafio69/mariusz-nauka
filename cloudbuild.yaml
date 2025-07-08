@@ -1,0 +1,27 @@
+# Ten plik definiuje kroki, które Cloud Build wykona automatycznie.
+# Wersja uproszczona, która wykorzystuje zintegrowane budowanie w 'gcloud run deploy'.
+steps:
+  # Krok 1: Zbuduj i wdróż aplikację za pomocą jednej komendy.
+  # 'gcloud run deploy' z flagą '--source .' automatycznie:
+  # 1. Zbuduje obraz kontenera za pomocą Cloud Build (używając lokalnego Dockerfile).
+  # 2. Wyśle obraz do Artifact Registry.
+  # 3. Wdroży nową wersję na Cloud Run.
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+    - 'run'
+    - 'deploy'
+    - '${_SERVICE_NAME}'
+    - '--source'
+    - '.' # Wskazuje, aby budować z bieżącego katalogu
+    - '--region'
+    - '${_REGION}'
+    - '--platform'
+    - 'managed'
+    - '--allow-unauthenticated' # Pozwala na publiczny dostęp. Usuń, jeśli API ma być prywatne.
+    - '--set-env-vars=FLASK_CONFIG=production,GCP_PROJECT_ID=$PROJECT_ID'
+ 
+# Opcjonalne: W tym podejściu nazwa obrazu jest generowana automatycznie przez Cloud Build.
+# Nie trzeba już jawnie definiować sekcji 'images'.
+options:
+  logging: CLOUD_LOGGING_ONLY
