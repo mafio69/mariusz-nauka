@@ -1,7 +1,15 @@
+# Ignoruj pliki i katalogi związane z Dockerem
+Dockerfile
+.dockerignore
+
+# Ignoruj pliki i katalogi związane z Gitem
+.git
+.gitignore
+
+# Ignoruj pliki specyficzne dla środowiska Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 .venv
-.git
-.idea
-logs/
-*.log
+venv/

@@ -1,12 +1,17 @@
-# Pliki środowiskowe
+# Dependencies & Environment
+.venv/
 .env
 
-# Katalogi cache Pythona
+# Python cache
 __pycache__/
 *.pyc
 
-# Katalogi z logami
+# Logs
 logs/
 *.log
-.venv/
+
+# Editor/IDE specific
 .vscode/
+
+# Tooling binaries
+snyk

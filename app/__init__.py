@@ -5,8 +5,47 @@ import os
 from google.cloud import secretmanager
 from google.api_core.exceptions import PermissionDenied, NotFound
 from google.auth.exceptions import DefaultCredentialsError
-from .logging_config import logger
 from .config import config_by_name
+from .logging_config import logger
+
+def _get_api_key_from_secret_manager(config: object) -> str | None:
+    """
+    Prywatna funkcja pomocnicza do pobierania klucza API z Google Secret Manager.
+    Hermetyzuje całą logikę i obsługę błędów.
+    
+    :param config: Obiekt konfiguracji aplikacji Flaska.
+    :return: Klucz API jako string lub None w przypadku błędu.
+    """
+    project_id = config.get('GCP_PROJECT_ID')
+    secret_name = config.get('GEMINI_API_KEY_SECRET_NAME')
+    secret_version = config.get('GEMINI_API_KEY_SECRET_VERSION')
+
+    if not project_id:
+        logger.error("GCP_PROJECT_ID nie jest ustawione w konfiguracji. Nie można pobrać sekretu.")
+        return None
+
+    try:
+        client = secretmanager.SecretManagerServiceClient()
+        name = f"projects/{project_id}/secrets/{secret_name}/versions/{secret_version}"
+        
+        logger.info(f"Pobieranie sekretu: {name}")
+        response = client.access_secret_version(request={"name": name})
+        api_key = response.payload.data.decode("UTF-8")
+        logger.info("Pomyślnie pobrano klucz API Gemini z Secret Managera.")
+        return api_key
+
+    except DefaultCredentialsError:
+        logger.error("Błąd uwierzytelnienia (DefaultCredentialsError). Uruchom 'gcloud auth application-default login'.", exc_info=True)
+    except PermissionDenied:
+        logger.error(f"Brak uprawnień (PermissionDenied) do odczytu sekretu '{secret_name}'.", exc_info=True)
+        logger.warning("Sprawdź, czy konto serwisowe ma rolę 'Secret Manager Secret Accessor'.")
+    except NotFound:
+        logger.error(f"Nie znaleziono sekretu '{secret_name}' w projekcie '{project_id}'.", exc_info=True)
+    except Exception as e:
+        logger.error(f"Nieoczekiwany błąd podczas łączenia z Secret Manager: {e}", exc_info=True)
+    
+    return None
+
 
 def create_app(config_name: str = 'default') -> Flask:
     """
@@ -15,49 +54,14 @@ def create_app(config_name: str = 'default') -> Flask:
     """
     app = Flask(__name__, template_folder='templates')
     config_object = config_by_name.get(config_name)
-    app.config.from_object(config_by_name[config_name])
+    app.config.from_object(config_object)
 
     # --- Pobieranie klucza API z Secret Managera ---
-    api_key = None
-    # Definiujemy zmienne przed blokiem try, aby były dostępne w blokach except
-    project_id = app.config.get('GCP_PROJECT_ID')
-    secret_name = app.config.get('GEMINI_API_KEY_SECRET_NAME')
-
-    try: # Ten blok jest najczęstszym źródłem błędów przy starcie.
-        if not project_id:
-            raise ValueError("Zmienna środowiskowa GCP_PROJECT_ID nie jest ustawiona.")
-
-        secret_version = app.config.get('GEMINI_API_KEY_SECRET_VERSION')
-
-        # Inicjalizacja klienta i pobranie sekretu
-        client = secretmanager.SecretManagerServiceClient()
-        name = f"projects/{project_id}/secrets/{secret_name}/versions/{secret_version}"
-        
-        logger.info(f"Pobieranie sekretu: {name}")
-        response = client.access_secret_version(request={"name": name})
-        api_key = response.payload.data.decode("UTF-8")
-        logger.info("Pomyślnie pobrano klucz API Gemini z Secret Managera.")
-
-    except DefaultCredentialsError:
-        logger.error("Błąd uwierzytelnienia (DefaultCredentialsError).", exc_info=True)
-        logger.warning("Upewnij się, że jesteś uwierzytelniony. Uruchom 'gcloud auth application-default login' w terminalu.")
-        api_key = None
-    except PermissionDenied:
-        logger.error("Brak uprawnień (PermissionDenied) do odczytu sekretu.", exc_info=True)
-        logger.warning(f"Sprawdź, czy konto serwisowe ma rolę 'Secret Manager Secret Accessor' dla sekretu '{secret_name}'.")
-        api_key = None
-    except NotFound:
-        logger.error("Nie znaleziono sekretu (NotFound).", exc_info=True)
-        logger.warning(f"Sprawdź, czy sekret '{secret_name}' na pewno istnieje w projekcie '{project_id}'.")
-        api_key = None
-    except Exception as e:
-        logger.error(f"Wystąpił nieoczekiwany błąd podczas łączenia z Secret Manager: {e}", exc_info=True)
-        api_key = None
+    api_key = _get_api_key_from_secret_manager(app.config)
 
     # --- Konfiguracja modelu Gemini ---
     if api_key:
         genai.configure(api_key=api_key)
-        # POPRAWKA: Zaktualizowano nazwę modelu do najnowszej stabilnej wersji.
         model_name = 'gemini-1.5-pro-latest'
         app.model = genai.GenerativeModel(model_name)
         logger.info(f"Model Gemini ('{model_name}') został pomyślnie skonfigurowany.")
