@@ -1,6 +1,6 @@
 # Użyj oficjalnego, lekkiego obrazu Python z przypiętą wersją dla powtarzalności i bezpieczeństwa
-FROM python:3.10-slim@sha256:a4163914b5ab027218525396f1349f2b0a8807b190983e5455c51482880e69de
-
+# Użyj oficjalnego, lekkiego obrazu Pythona jako bazy.
+FROM python:3.11-slim
 # Ustaw katalog roboczy w kontenerze
 WORKDIR /app
 
