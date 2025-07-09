@@ -31,5 +31,12 @@ steps:
 # Opcjonalne: W tym podejściu nazwa obrazu jest generowana automatycznie przez Cloud Build.
 # Ustawienie 'logging' na 'CLOUD_LOGGING_ONLY' jest wymagane, gdy używany jest niestandardowy
 # service account, aby rozwiązać problem z bucketem na logi.
+
+# ... Twoje kroki kompilacji
+logsBucket: 'gs://mariusz-nauka-logs'
 options:
-  logging: CLOUD_LOGGING_ONLY
+  logging: GCS_ONLY
+
+
+
+
