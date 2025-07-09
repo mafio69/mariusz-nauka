@@ -1,15 +1,17 @@
-# Ignoruj pliki i katalogi związane z Dockerem
-Dockerfile
-.dockerignore
+# Ignoruj pliki i katalogi, które nie są potrzebne w finalnym obrazie kontenera.
+# Pomaga to zmniejszyć rozmiar obrazu, przyspieszyć proces budowania i zwiększyć bezpieczeństwo.
 
-# Ignoruj pliki i katalogi związane z Gitem
-.git
-.gitignore
-
-# Ignoruj pliki specyficzne dla środowiska Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.venv
+.Python
+
 venv/
+.venv/
+
+.git/
+.gitignore
+Dockerfile
+.dockerignore
+README.md

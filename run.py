@@ -25,7 +25,7 @@ if __name__ == "__main__":
     # Użyj zmiennych środowiskowych do konfiguracji hosta i portu, z rozsądnymi domyślnymi.
     # Jest to standard w aplikacjach chmurowych (np. Cloud Run).
     host = os.getenv('HOST', '0.0.0.0')
-    port = int(os.getenv('PORT', 8089))
+    port = int(os.getenv('PORT', 8080))
     debug_mode = app.config.get('DEBUG', False)
     logger.info(f"Uruchamianie serwera w trybie '{config_name}' (debug={debug_mode}) na http://{host}:{port}")
     app.run(host=host, port=port, debug=debug_mode)
