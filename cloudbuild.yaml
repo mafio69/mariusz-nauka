@@ -33,10 +33,6 @@ steps:
 # service account, aby rozwiązać problem z bucketem na logi.
 
 # ... Twoje kroki kompilacji
-logsBucket: 'gs://mariusz-nauka-logs'
+logsBucket: 'gs:///mariusz-nauka-logs-mf1969' # <-- WAŻNE: Wstaw tutaj nazwę, którą utworzyłeś
 options:
   logging: GCS_ONLY
-
-
-
-
