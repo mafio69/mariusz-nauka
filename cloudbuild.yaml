@@ -1,5 +1,12 @@
 # Ten plik definiuje kroki, które Cloud Build wykona automatycznie.
 # Wersja uproszczona, która wykorzystuje zintegrowane budowanie w 'gcloud run deploy'.
+
+# Zmienne podstawieniowe pozwalają na elastyczność.
+# Można je nadpisać w ustawieniach aktywatora (triggera).
+substitutions:
+  _SERVICE_NAME: mariusz-nauka # Zmień na nazwę swojej usługi
+  _REGION: europe-west1      # Zmień na swój region
+
 steps:
   # Krok 1: Zbuduj i wdróż aplikację za pomocą jednej komendy.
   # 'gcloud run deploy' z flagą '--source .' automatycznie:
@@ -22,6 +29,7 @@ steps:
     - '--set-env-vars=FLASK_CONFIG=production,GCP_PROJECT_ID=$PROJECT_ID'
  
 # Opcjonalne: W tym podejściu nazwa obrazu jest generowana automatycznie przez Cloud Build.
-# Nie trzeba już jawnie definiować sekcji 'images'.
+# Ustawienie 'logging' na 'CLOUD_LOGGING_ONLY' jest wymagane, gdy używany jest niestandardowy
+# service account, aby rozwiązać problem z bucketem na logi.
 options:
   logging: CLOUD_LOGGING_ONLY
