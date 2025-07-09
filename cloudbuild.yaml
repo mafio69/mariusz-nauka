@@ -34,5 +34,8 @@ steps:
 
 # ... Twoje kroki kompilacji
 logsBucket: 'gs:///mariusz-nauka-logs-mf1969' # <-- WAŻNE: Wstaw tutaj nazwę, którą utworzyłeś
+
+serviceAccount: 'projects/mariusz-nauka-01072025-14/serviceAccounts/653759433507-compute@developer.gserviceaccount.com'
 options:
-  logging: GCS_ONLY
+  logging: GCS_ONLY # Opcjonalnie, jeśli chcesz tylko w GCS, domyślnie jest wysyłane też do Cloud Logging
+
