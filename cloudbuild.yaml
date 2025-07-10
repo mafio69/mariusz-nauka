@@ -38,4 +38,8 @@ steps:
 #serviceAccount: 'projects/mariusz-nauka-01072025-14/serviceAccounts/653759433507-compute@developer.gserviceaccount.com'
 #options:
 #  logging: GCS_ONLY # Opcjonalnie, jeśli chcesz tylko w GCS, domyślnie jest wysyłane też do Cloud Logging
-
+#steps:
+#- name: 'gcr.io/cloud-builders/docker'
+#  args: ['build', '-t', 'nazwa-twojego-obrazu', '.']
+options:
+  logging: CLOUD_LOGGING_ONLY
